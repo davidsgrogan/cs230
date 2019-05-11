@@ -1,0 +1,4 @@
+venv/
+*.wav
+*.mp3
+*.raw
