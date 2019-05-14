@@ -2,3 +2,4 @@ venv/
 *.wav
 *.mp3
 *.raw
+.ipynb_checkpoints
