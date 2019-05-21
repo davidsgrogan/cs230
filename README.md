@@ -9,3 +9,5 @@ second:
 
 The file sizes are the same modulo the wav header that contains info about the
 sampling rate and bit depth etc.
+
+Test commit
