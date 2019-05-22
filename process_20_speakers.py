@@ -37,8 +37,10 @@ print ("\nThe speaker with least data has %d seconds. So stop there for all spea
 # nowitcanbetold has 68431 seconds. 68400 is exactly 19 hours, so just use that?
 
 def write_to_file(speaker_id, one_minute_of_examples, file_num, minute_num):
-    with open('data_np_save/speaker_%d_file_%d_cumulative_minute_%d.pkl' % (speaker_id, file_num, minute_num), 'wb') as output_file:
-        pickle.dump(one_minute_of_examples, output_file)
+  np_array = np.array(one_minute_of_examples, dtype="float32")
+  filename = 'data_np_save/speaker_%d_file_%d_cumulative_minute_%d' % (speaker_id, file_num, minute_num)
+  print ("saving", filename)
+  np.save(filename, np_array)
 
 speaker_id = 0
 top_20 = ["nowitcanbetold"]
@@ -63,9 +65,12 @@ for file_prefix in top_20:
         start_index_of_half_second = 0
         one_minute_of_examples = []
         while total_length_of_wave - start_index_of_half_second >= (120 * half_second_length):
-            print (start_index_of_half_second, start_index_of_half_second + half_second_length)
+#            print (start_index_of_half_second, start_index_of_half_second + half_second_length)
             this_training_example_raw = audio_time_series[start_index_of_half_second:start_index_of_half_second + half_second_length]
             start_index_of_half_second += half_second_length
+            # 552 is 22050 * 0.025. These mp3s aren't downsampled like the wavs
+            # were so there are more samples per half-second than the default
+            # number of 512 fft.
             mfccs = mfcc(this_training_example_raw, samplerate=sampling_rate, nfft=552)
             assert mfccs.shape == (49, 13), mfccs.shape
             first_derivative = delta(mfccs, 2)
