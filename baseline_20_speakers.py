@@ -22,7 +22,10 @@ os.environ["PATH"] += os.pathsep + '/Users/dgrogan/anaconda3/pkgs/graphviz-2.40.
 
 #%%
 np.random.seed(123456)
-random.seed(18)
+random.seed(18) # 85.8%, then 82% after restarting kernel
+#random.seed(183) # 86.7%
+#random.seed(1832) # 85%
+#random.seed(18932) # 85%
 start_time = time.time()
 
 # This cell reads the pre-processed audio features from disk and stuffs it into
