@@ -22,7 +22,13 @@ os.environ["PATH"] += os.pathsep + '/Users/dgrogan/anaconda3/pkgs/graphviz-2.40.
 
 #%%
 np.random.seed(123456)
-random.seed(18) # 85.8%, then 82% after restarting kernel
+random.seed(18) # 85.8%, then 82% after restarting kernel, then 87% after resetting again
+# After setting sklearn seed, 84.7% then 85.2%, 84.8% <-- these were with batch size 128
+# Then using batch size of 256, finished in 55% of the time, but got only 84%
+# Then after changing batch size to 512, finished in 1/3 the time of 128, but only got 80%
+#  - then 84.4%, 83%
+# Then after changing batch size to 1024, only got 81% twice in a row, finished
+# in 2/3 the time of batch size of 512
 #random.seed(183) # 86.7%
 #random.seed(1832) # 85%
 #random.seed(18932) # 85%
@@ -85,6 +91,7 @@ for speaker_num in range(1, NUM_SPEAKERS + 1):
 X_train, X_dev, y_train, y_dev = train_test_split(train_dev_set,
                                                   train_dev_labels,
                                                   test_size = 0.1,
+                                                  random_state = 35,
                                                   shuffle = True)
 
 print ("%d seconds to load the data from disk" % (time.time() - start_time))
@@ -107,9 +114,10 @@ display(IPython.display.Image('test_keras_plot_model.png'))
 print(model.summary())
 # I don't know where 140240419526080 in the picture came from
 
-history_object = model.fit(X_train, y_train, epochs=40, batch_size=128,
+start_time = time.time()
+history_object = model.fit(X_train, y_train, epochs=40, batch_size=256,
                            verbose=2, shuffle=True, validation_data=(X_dev, y_dev))
-
+print ("%d seconds to train the model" % (time.time() - start_time))
 #%%
 # Plot training & validation accuracy values
 plt.plot(history_object.history['acc'])
