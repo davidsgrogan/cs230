@@ -3,3 +3,4 @@ venv/
 *.mp3
 *.raw
 .ipynb_checkpoints
+data_np_save/
