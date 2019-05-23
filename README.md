@@ -10,4 +10,9 @@ second:
 The file sizes are the same modulo the wav header that contains info about the
 sampling rate and bit depth etc.
 
-Test commit
+To pull 5% of each speaker's data to the test set, while in the data_np_save/
+directory, I ran:
+
+`for i in `seq 2 20`; do ls -1 speaker_${i}_*npy |shuf -n 55 |xargs -I{} mv {} test_only; done`
+
+The 55 is because each speaker has 1102 files, 5% of which is 55.1.
