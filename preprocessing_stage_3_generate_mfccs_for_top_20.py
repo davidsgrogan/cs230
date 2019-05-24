@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri May 17 17:20:50 2019
 
 @author: dgrogan
 """
@@ -83,10 +82,12 @@ for file_prefix in top_20:
             if (len(one_minute_of_examples) == 49 * 13 * 3 * 120):
                 write_to_file(speaker_id, one_minute_of_examples, file_num, minute_num)
                 minute_num += 1
-                if minute_num == 1106:
+                # The smallest audiobook counted by minutes, unspokensermons,
+                # has 1101 minutes, so if we're about to process 1102, punt.
+                if minute_num == 1102:
                     break
                 one_minute_of_examples = []
-        if minute_num == 1106:
+        if minute_num == 1102:
             break
         print ("that file took %d seconds" % (time.time() - file_start_time))
     print ("that speaker took %d seconds" % (time.time() - speaker_start_time))

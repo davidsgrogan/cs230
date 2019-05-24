@@ -23,7 +23,7 @@ print(total_durations)
 sorted_by_duration = sorted(total_durations, key=lambda x: total_durations[x], reverse=True)
 
 top_20 = sorted_by_duration[0:21]
-# Throw out "the"
+# Throw out "the" because it describes two audio books.
 top_20.remove("the");
 for title in top_20:
     print(title, total_durations[title])
