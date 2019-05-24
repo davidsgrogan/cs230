@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#import os
+#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
@@ -11,10 +14,10 @@ from sklearn.model_selection import train_test_split
 import IPython.display
 
 import glob
-import os
 import time
 import random
 import math
+import os
 
 # This workaround is only needed on my mac. It won't harm other computers though.
 os.environ["PATH"] += os.pathsep + '/Users/dgrogan/anaconda3/pkgs/graphviz-2.40.1-hefbbd9a_2/bin'
@@ -60,7 +63,7 @@ start_time = time.time()
 # Limit the amount of data we train on. We have 1047 minutes available per
 # speaker in the train/dev set on disk, so setting this number higher than that
 # is a no-op.
-MINUTES_PER_SPEAKER = 60
+MINUTES_PER_SPEAKER = 150
 # We have a max of 20 speakers but can change this to train on just a subset.
 NUM_SPEAKERS = 20
 
@@ -111,8 +114,9 @@ print ("%d seconds to load the data from disk" % (time.time() - start_time))
 model = tf.keras.Sequential()
 
 #hidden layers
-model.add(layers.Dense(50, activation='relu', input_dim=train_dev_set.shape[1]))
-#model.add(layers.Dense(50, activation='relu'))
+model.add(layers.Dense(150, activation='relu', input_dim=train_dev_set.shape[1]))
+model.add(layers.Dense(100, activation='relu'))
+model.add(layers.Dense(100, activation='relu'))
 model.add(layers.Dense(NUM_SPEAKERS, activation='softmax'))
 
 model.compile(optimizer=tf.train.AdamOptimizer(0.001),
@@ -125,7 +129,8 @@ print(model.summary())
 # I don't know where 140240419526080 in the picture came from
 
 start_time = time.time()
-history_object = model.fit(X_train, y_train, epochs=40, batch_size=1024,
+#with tf.device('/cpu:0'):
+history_object = model.fit(X_train, y_train, epochs=60, batch_size=1024,
                            verbose=2, shuffle=True, validation_data=(X_dev, y_dev))
 print ("%d seconds to train the model" % (time.time() - start_time))
 #%%
