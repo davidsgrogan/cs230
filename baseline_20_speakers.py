@@ -21,8 +21,8 @@ os.environ["PATH"] += os.pathsep + '/Users/dgrogan/anaconda3/pkgs/graphviz-2.40.
 
 
 #%%
-np.random.seed(123456)
-random.seed(18) # 85.8%, then 82% after restarting kernel, then 87% after resetting again
+np.random.seed(124568)
+random.seed(1899) # 85.8%, then 82% after restarting kernel, then 87% after resetting again
 # After setting sklearn seed, 84.7% then 85.2%, 84.8% <-- these were with batch size 128
 # Then using batch size of 256, finished in 55% of the time, but got only 84%
 # Then after changing batch size to 512, finished in 1/3 the time of 128, but only got 80%
@@ -32,6 +32,15 @@ random.seed(18) # 85.8%, then 82% after restarting kernel, then 87% after resett
 #random.seed(183) # 86.7%
 #random.seed(1832) # 85%
 #random.seed(18932) # 85%
+
+# We get a validation accuracy of 54, 55, or 56% depending on the random state
+# for 20 speakers with 60 minutes each.
+# We get a validation of 40-45% for 20 speakers with 6 minutes each including
+# both derivatives.
+# We get validation of 36-48% for 20 speakers, 6 minutes each, including only
+# the first derivative. 
+
+
 start_time = time.time()
 
 # This cell reads the pre-processed audio features from disk and stuffs it into
@@ -48,12 +57,14 @@ start_time = time.time()
 # split our train/dev however we want as we go along.
 
 
+
+
 # Limit the amount of data we train on. We have 1047 minutes available per
 # speaker in the train/dev set on disk, so setting this number higher than that
 # is a no-op.
-MINUTES_PER_SPEAKER = 60
+MINUTES_PER_SPEAKER = 6
 # We have a max of 20 speakers but can change this to train on just a subset.
-NUM_SPEAKERS = 4
+NUM_SPEAKERS = 20
 
 # Don't change these, they just reflect what's on disk.
 NUM_ATTRIBUTES_PER_SAMPLE = 49 * 13 * 3
@@ -85,7 +96,7 @@ for speaker_num in range(1, NUM_SPEAKERS + 1):
         files_already_processed += 1
 
 # Cut down to only first derivative of MFCC
-#train_dev_set = train_dev_set[:, 0:(49 * 13 * 2)]
+train_dev_set = train_dev_set[:, 0:(49 * 13 * 2)]
 
 
 X_train, X_dev, y_train, y_dev = train_test_split(train_dev_set,
@@ -115,7 +126,7 @@ print(model.summary())
 # I don't know where 140240419526080 in the picture came from
 
 start_time = time.time()
-history_object = model.fit(X_train, y_train, epochs=40, batch_size=256,
+history_object = model.fit(X_train, y_train, epochs=50, batch_size=256,
                            verbose=2, shuffle=True, validation_data=(X_dev, y_dev))
 print ("%d seconds to train the model" % (time.time() - start_time))
 #%%
