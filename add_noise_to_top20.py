@@ -15,8 +15,7 @@ import multiprocessing
 from pydub import AudioSegment
 
 def do_one_speaker(file_prefix):
-    this_speaker_glob = (
-            '/usr/local/google/home/dgrogan/cs230/top20_mp3/%s_*.mp3' % file_prefix)
+    this_speaker_glob = os.path.abspath('top20_mp3/%s_*.mp3' % file_prefix)
     list_of_mp3s_for_one_speaker = sorted(glob.glob(this_speaker_glob))
     assert len(list_of_mp3s_for_one_speaker) > 10, "%s had %d mp3s" % (
         this_speaker_glob, len(list_of_mp3s_for_one_speaker))
@@ -53,6 +52,13 @@ def do_one_speaker(file_prefix):
 
 
 if __name__ == '__main__':
+
+    try:
+        os.makedirs("noisy_top_20")
+    except OSError as e:
+        print ("\nerror creating noisy_top_20/ does it already exist? If so you probably want to delete it\n")
+        raise e
+
     speaker_id = 1
     top_20 = [
         "nowitcanbetold",
@@ -78,15 +84,17 @@ if __name__ == '__main__':
     ]
     
     noise_file_names = [
-        "/usr/local/google/home/dgrogan/cs230/noise_sources/crowd-talking-8.mp3",
-        "/usr/local/google/home/dgrogan/cs230/noise_sources/laptop-keyboard-1.wav",
-        "/usr/local/google/home/dgrogan/cs230/noise_sources/plastic-crumple-1.mp3",
-        #    "/usr/local/google/home/dgrogan/cs230/noise_sources/car-reverse-1.mp3",
+        "noise_sources/crowd-talking-8.mp3",
+        "noise_sources/laptop-keyboard-1.wav",
+        "noise_sources/plastic-crumple-1.mp3",
+        # "/usr/local/google/home/dgrogan/cs230/noise_sources/car-reverse-1.mp3",
     ]
     
     noise_short_names = ["crowd", "laptop", "plastic"]
     
+    noise_file_names = [os.path.abspath(noise_file_name) for noise_file_name in noise_file_names]
     noise_segments = [AudioSegment.from_file(i) for i in noise_file_names]
+    assert noise_segments[0].duration_seconds > 0.5, "Does %s exist? It was only %s seconds long" %(noise_file_names[0], noise_segments[0].duration_seconds)
     noise_segments = [i.set_channels(1) for i in noise_segments]
     noise_segments = [i.set_frame_rate(22050) for i in noise_segments]
     

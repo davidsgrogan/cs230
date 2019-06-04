@@ -26,10 +26,9 @@ def write_to_file(speaker_id, one_minute_of_examples, file_num, minute_num, nois
 
 def process_one_speaker(speaker_id_file_prefix):
     speaker_id, file_prefix = speaker_id_file_prefix
-    this_speaker_glob = ('/usr/local/google/home/dgrogan/cs230/noisy_top_20/%s_*'
-                         % file_prefix)
+    this_speaker_glob = os.path.abspath('noisy_top_20/%s_*' % file_prefix)
     list_of_mp3s_for_one_speaker = sorted(glob.glob(this_speaker_glob))
-    assert len(list_of_mp3s_for_one_speaker) > 0, file_prefix
+    assert len(list_of_mp3s_for_one_speaker) > 0, this_speaker_glob
     speaker_start_time = time.time()
     minute_num = 0
     file_num = 0
@@ -104,6 +103,13 @@ top_20 = [
 ]
 
 if __name__ == '__main__':
+
+    try:
+        os.makedirs("noisy_mfccs")
+    except OSError as e:
+        print ("\nerror creating noisy_mfccs/ does it already exist? If so you probably want to delete it\n")
+        raise e
+
     from multiprocessing import Pool
     pool = Pool()
     result = pool.map(process_one_speaker, zip(range(1, len(top_20) + 1), top_20))
