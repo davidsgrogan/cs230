@@ -12,46 +12,34 @@ import time
 from python_speech_features import mfcc, delta
 import pickle
 import numpy as np
+import re
 
-def write_to_file(speaker_id, one_minute_of_examples, file_num, minute_num):
+def write_to_file(speaker_id, one_minute_of_examples, file_num, minute_num, noise_id=None):
   np_array = np.array(one_minute_of_examples, dtype="float32")
-  filename = 'data_np_save/speaker_%d_file_%d_cumulative_minute_%d' % (speaker_id, file_num, minute_num)
+  filename = 'noisy_mfccs/speaker_%d_file_%d_cumulative_minute_%d' % (speaker_id, file_num, minute_num)
+  if noise_id != None:
+    filename += "_" + noise_id
+#  filename = 'data_np_save/speaker_%d_file_%d_cumulative_minute_%d' % (speaker_id, file_num, minute_num)
   print ("saving", filename)
   np.save(filename, np_array)
 
-speaker_id = 1
-top_20 = [
-# "nowitcanbetold", I processed this one out of band and labeled it speaker 1
-"unspokensermons",
-"littlewomen",
-"artcookerymadeplaineasy1784",
-"historymathematics",
-"mysticalcityofgod1",
-"newtestament",
-"uncletomscabin",
-"seapower",
-"wildwales",
-"originofspecies",
-"mysteries",
-"1001nacht2",
-"rkopis",
-"innocentsabroad",
-"woutertjepieterse",
-"geschichtedespeloponnesischenkriegs",
-"vanityfair",
-"jerusalemrevelationsr",
-"worldenglishbible",
-]
-for file_prefix in top_20:
-    speaker_id += 1
-    this_speaker_glob = ('/usr/local/google/home/dgrogan/top20_mp3/%s_*.mp3'
+
+def process_one_speaker(speaker_id_file_prefix):
+    speaker_id, file_prefix = speaker_id_file_prefix
+    this_speaker_glob = ('/usr/local/google/home/dgrogan/cs230/noisy_top_20/%s_*'
                          % file_prefix)
     list_of_mp3s_for_one_speaker = sorted(glob.glob(this_speaker_glob))
+    assert len(list_of_mp3s_for_one_speaker) > 0, file_prefix
     speaker_start_time = time.time()
     minute_num = 0
     file_num = 0
     for mp3 in list_of_mp3s_for_one_speaker:
         file_num += 1
+
+        match = re.search(r"_(NOISE.+?)\.mp3$", mp3)
+        assert match, mp3
+        noise_id = match.group(1)
+
         file_start_time = time.time()
         print ("loading ", mp3)
         audio_time_series, sampling_rate = librosa.core.load(mp3, sr=None)
@@ -80,7 +68,7 @@ for file_prefix in top_20:
             one_minute_of_examples.extend(np.ravel(second_derivative))
             assert len(one_minute_of_examples) % (49 * 13 * 3) == 0, len(one_minute_of_examples)
             if (len(one_minute_of_examples) == 49 * 13 * 3 * 120):
-                write_to_file(speaker_id, one_minute_of_examples, file_num, minute_num)
+                write_to_file(speaker_id, one_minute_of_examples, file_num, minute_num, noise_id)
                 minute_num += 1
                 # The smallest audiobook counted by minutes, unspokensermons,
                 # has 1101 minutes, so if we're about to process 1102, punt.
@@ -91,3 +79,31 @@ for file_prefix in top_20:
             break
         print ("that file took %d seconds" % (time.time() - file_start_time))
     print ("that speaker took %d seconds" % (time.time() - speaker_start_time))
+
+top_20 = [
+"nowitcanbetold", # This is speaker 1 and the list is always in this order.
+"unspokensermons",
+"littlewomen",
+"artcookerymadeplaineasy1784",
+"historymathematics",
+"mysticalcityofgod1",
+"newtestament",
+"uncletomscabin",
+"seapower",
+"wildwales",
+"originofspecies",
+"mysteries",
+"1001nacht2",
+"rkopis",
+"innocentsabroad",
+"woutertjepieterse",
+"geschichtedespeloponnesischenkriegs",
+"vanityfair",
+"jerusalemrevelationsr",
+"worldenglishbible",
+]
+
+if __name__ == '__main__':
+    from multiprocessing import Pool
+    pool = Pool()
+    result = pool.map(process_one_speaker, zip(range(1, len(top_20) + 1), top_20))

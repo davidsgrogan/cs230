@@ -63,7 +63,7 @@ start_time = time.time()
 # Limit the amount of data we train on. We have 1047 minutes available per
 # speaker in the train/dev set on disk, so setting this number higher than that
 # is a no-op.
-MINUTES_PER_SPEAKER = 150
+MINUTES_PER_SPEAKER = 300
 # We have a max of 20 speakers but can change this to train on just a subset.
 NUM_SPEAKERS = 20
 
@@ -83,7 +83,8 @@ train_dev_labels = np.full((num_samples, NUM_SPEAKERS), -1)
 
 files_already_processed = 0
 for speaker_num in range(1, NUM_SPEAKERS + 1):
-    files = glob.glob("data_np_save/train_dev/speaker_%d_*.npy" % speaker_num)
+#    files = glob.glob("data_np_save/train_dev/speaker_%d_*.npy" % speaker_num)
+    files = glob.glob("noisy_mfccs/speaker_%d_*.npy" % speaker_num)
     random.shuffle(files)
     files = files[:MINUTES_PER_SPEAKER]
     assert len(files) > 0, "We found no files for speaker %d when globbing from the directory %s" % (speaker_num, os.getcwd())
@@ -114,8 +115,12 @@ print ("%d seconds to load the data from disk" % (time.time() - start_time))
 model = tf.keras.Sequential()
 
 #hidden layers
-model.add(layers.Dense(150, activation='relu', input_dim=train_dev_set.shape[1]))
-model.add(layers.Dense(100, activation='relu'))
+# 250/200/200 got us 72%/57% on noisy data with 2.5 hours per speaker
+# 350/200/200/100 got us 73%/63% on noisy data with 5 hours per speaker
+# So making the network bigger didn't really help much.
+model.add(layers.Dense(350, activation='relu', input_dim=train_dev_set.shape[1]))
+model.add(layers.Dense(200, activation='relu'))
+model.add(layers.Dense(200, activation='relu'))
 model.add(layers.Dense(100, activation='relu'))
 model.add(layers.Dense(NUM_SPEAKERS, activation='softmax'))
 
@@ -124,7 +129,7 @@ model.compile(optimizer=tf.train.AdamOptimizer(0.001),
               metrics=['accuracy'])
 
 keras.utils.plot_model(model, to_file='test_keras_plot_model.png', show_shapes=True)
-display(IPython.display.Image('test_keras_plot_model.png'))
+#display(IPython.display.Image('test_keras_plot_model.png'))
 print(model.summary())
 # I don't know where 140240419526080 in the picture came from
 
