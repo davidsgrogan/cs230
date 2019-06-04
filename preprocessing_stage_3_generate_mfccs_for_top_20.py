@@ -112,4 +112,10 @@ if __name__ == '__main__':
 
     from multiprocessing import Pool
     pool = Pool()
-    result = pool.map(process_one_speaker, zip(range(1, len(top_20) + 1), top_20))
+    print("starting %d processes" % pool._processes)
+
+    try:
+        result = pool.map(process_one_speaker, zip(range(1, len(top_20) + 1), top_20))
+    except KeyboardInterrupt:
+      pool.terminate()
+      pool.join()
