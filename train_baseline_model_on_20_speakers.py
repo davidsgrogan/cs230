@@ -3,13 +3,14 @@
 #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras import layers
-from keras.utils import to_categorical
+from keras import optimizers
+from keras import layers
+from keras.models import Sequential
 import keras.utils
-import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from confusion_matrix import generate_confusion_matrix
 
+import matplotlib.pyplot as plt
 
 import IPython.display
 
@@ -41,7 +42,7 @@ random.seed(1889) # 85.8%, then 82% after restarting kernel, then 87% after rese
 # We get a validation of 40-45% for 20 speakers with 6 minutes each including
 # both derivatives.
 # We get validation of 36-48% for 20 speakers, 6 minutes each, including only
-# the first derivative. 
+# the first derivative.
 
 
 start_time = time.time()
@@ -49,7 +50,7 @@ start_time = time.time()
 # This cell reads the pre-processed audio features from disk and stuffs it into
 # an np.array for Keras.
 
-# We have 
+# We have
 # 20 speakers
 # 1102 files per speaker
 # 120 samples per file (1 minute of audio per file)
@@ -60,42 +61,47 @@ start_time = time.time()
 # split our train/dev however we want as we go along.
 
 
-# Limit the amount of data we train on. We have 1047 minutes available per
+# These control how much data we _train_ on. We have 1047 minutes available per
 # speaker in the train/dev set on disk, so setting this number higher than that
 # is a no-op.
-MINUTES_PER_SPEAKER = 300
-# We have a max of 20 speakers but can change this to train on just a subset.
+MINUTES_PER_SPEAKER = 150
+# We have 20 speakers but can decrease this to train on just a subset.
 NUM_SPEAKERS = 20
 
-# Don't change these, they just reflect what's on disk.
+# Don't change these, they reflect what's on disk from the preprocessing stage.
 NUM_ATTRIBUTES_PER_SAMPLE = 49 * 13 * 3
 NUM_SAMPLES_PER_FILE = 120
 DTYPE_ON_DISK = 'float32' # We used float32 to save disk space.
 
-# In Keras, you want samples to be the rows, so the height of the matrix is the
-# number of samples.
-# Our samples are half second long, so multiply number of seconds * 2.
-num_samples = MINUTES_PER_SPEAKER * NUM_SPEAKERS * 60 * 2
-train_dev_set = np.zeros((num_samples, NUM_ATTRIBUTES_PER_SAMPLE),
-                         dtype=DTYPE_ON_DISK)
-train_dev_labels = np.full((num_samples, NUM_SPEAKERS), -1)
+# |directory| is relative to the current directory.
+def load_mfccs(directory, num_speakers, minutes_per_speaker):
+  # In Keras, you want samples to be the rows, so the height of the matrix is the
+  # number of samples.
+  # Our samples are half second long, so multiply number of seconds * 2.
+  num_samples = minutes_per_speaker * num_speakers * 60 * 2
+  network_inputs = np.zeros((num_samples, NUM_ATTRIBUTES_PER_SAMPLE),
+                           dtype=DTYPE_ON_DISK)
+  labels = np.full((num_samples, num_speakers), -1)
+  files_already_processed = 0
+  for speaker_num in range(1, num_speakers + 1):
+      file_glob = os.path.abspath(directory) + os.sep + "speaker_%d_*.npy" % speaker_num
+      files = glob.glob(file_glob)
+      assert len(files) > 0, "We found no files for speaker %d for glob %s" % (speaker_num, file_glob)
+      assert len(files) >= minutes_per_speaker, (len(files), minutes_per_speaker, speaker_num, file_glob)
+      random.shuffle(files)
+      files = files[:minutes_per_speaker]
+      assert len(files) <= minutes_per_speaker, "We have %d files" % len(files)
+      for npy in files:
+          these_samples = np.load(npy)
+          assert(these_samples.shape == (NUM_ATTRIBUTES_PER_SAMPLE * NUM_SAMPLES_PER_FILE,)), these_samples.shape
+          sample_start_index = files_already_processed * NUM_SAMPLES_PER_FILE
+          network_inputs[sample_start_index:sample_start_index + NUM_SAMPLES_PER_FILE, :] = these_samples.reshape((NUM_SAMPLES_PER_FILE, -1))
+          labels[sample_start_index:sample_start_index + NUM_SAMPLES_PER_FILE, :] = keras.utils.to_categorical(speaker_num - 1, num_classes=num_speakers)
+          files_already_processed += 1
 
+  return (network_inputs, labels)
 
-files_already_processed = 0
-for speaker_num in range(1, NUM_SPEAKERS + 1):
-#    files = glob.glob("data_np_save/train_dev/speaker_%d_*.npy" % speaker_num)
-    files = glob.glob("noisy_mfccs/speaker_%d_*.npy" % speaker_num)
-    random.shuffle(files)
-    files = files[:MINUTES_PER_SPEAKER]
-    assert len(files) > 0, "We found no files for speaker %d when globbing from the directory %s" % (speaker_num, os.getcwd())
-    assert len(files) <= MINUTES_PER_SPEAKER, "We have %d files" % len(files)
-    for npy in files:
-        these_samples = np.load(npy)
-        assert(these_samples.shape == (NUM_ATTRIBUTES_PER_SAMPLE * NUM_SAMPLES_PER_FILE,)), these_samples.shape
-        sample_start_index = files_already_processed * NUM_SAMPLES_PER_FILE
-        train_dev_set[sample_start_index:sample_start_index + NUM_SAMPLES_PER_FILE, :] = these_samples.reshape((NUM_SAMPLES_PER_FILE, -1))
-        train_dev_labels[sample_start_index:sample_start_index + NUM_SAMPLES_PER_FILE, :] = to_categorical(speaker_num - 1, num_classes=NUM_SPEAKERS)
-        files_already_processed += 1
+train_dev_set, train_dev_labels = load_mfccs("data_np_save/train_dev", NUM_SPEAKERS, MINUTES_PER_SPEAKER)
 
 # Cut down to only first derivative of MFCC
 #train_dev_set = train_dev_set[:, 0:(49 * 13 * 2)]
@@ -109,10 +115,11 @@ X_train, X_dev, y_train, y_dev = train_test_split(train_dev_set,
 
 print ("%d seconds to load the data from disk" % (time.time() - start_time))
 
+test_set_inputs, test_set_labels = load_mfccs("noisy_mfccs", NUM_SPEAKERS, 30)
 #%%
 
 #Keras
-model = tf.keras.Sequential()
+model = Sequential()
 
 #hidden layers
 # 250/200/200 got us 72%/57% on noisy data with 2.5 hours per speaker
@@ -124,7 +131,8 @@ model.add(layers.Dense(200, activation='relu'))
 model.add(layers.Dense(100, activation='relu'))
 model.add(layers.Dense(NUM_SPEAKERS, activation='softmax'))
 
-model.compile(optimizer=tf.train.AdamOptimizer(0.001),
+adam_optimizer = keras.optimizers.Adam(lr=0.001, decay=0.0)
+model.compile(optimizer=adam_optimizer,
               loss='categorical_crossentropy',
               metrics=['accuracy'])
 
@@ -135,24 +143,32 @@ print(model.summary())
 
 start_time = time.time()
 #with tf.device('/cpu:0'):
-history_object = model.fit(X_train, y_train, epochs=60, batch_size=1024,
+history_object = model.fit(X_train, y_train, epochs=40, batch_size=1024,
                            verbose=2, shuffle=True, validation_data=(X_dev, y_dev))
 print ("%d seconds to train the model" % (time.time() - start_time))
+
+model.save("baseline_model.h5")
+
+generate_confusion_matrix(model, test_set_inputs, test_set_labels)
+
 #%%
 # Plot training & validation accuracy values
 plt.plot(history_object.history['acc'])
 plt.plot(history_object.history['val_acc'])
-plt.title('Model accuracy')
+plt.title('Fully Connected Model Accuracy')
 plt.ylabel('Accuracy')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
-plt.show()
+plt.savefig('baseline_accuracy.png', bbox_inches='tight')
+plt.close()
+#plt.show()
 
 # Plot training & validation loss values
 plt.plot(history_object.history['loss'])
 plt.plot(history_object.history['val_loss'])
-plt.title('Model loss')
+plt.title('Fully Connected Model Loss')
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
-plt.show()
+plt.savefig('baseline_loss.png', bbox_inches='tight')
+#plt.show()
