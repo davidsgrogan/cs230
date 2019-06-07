@@ -63,9 +63,9 @@ start_time = time.time()
 # These control how much data we _train_ on. We have 1047 minutes available per
 # speaker in the train/dev set on disk, so setting this number higher than that
 # is a no-op.
-MINUTES_PER_SPEAKER = 3
+MINUTES_PER_SPEAKER = 180
 # We have 20 speakers but can decrease this to train on just a subset.
-NUM_SPEAKERS = 2
+NUM_SPEAKERS = 20
 
 # 22050 * 60 * 60 * 2 bytes = 150 MB per hour per speaker
 
@@ -100,8 +100,10 @@ NUM_SAMPLES = NUM_SPEAKERS * NUM_SAMPLES_PER_SPEAKER
 SAMPLE_RATE = 22050
 HALF_SECOND_OF_SAMPLES = int(SAMPLE_RATE / 2)
 
-#%%
+# %%
 network_inputs = np.zeros((NUM_SAMPLES, HALF_SECOND_OF_SAMPLES))
+labels = np.full((NUM_SAMPLES, NUM_SPEAKERS), -1)
+
 
 samples_so_far_total = 0
 for speaker_id, file_prefix in enumerate(top_20, 1):
@@ -114,29 +116,45 @@ for speaker_id, file_prefix in enumerate(top_20, 1):
     samples_so_far_for_this_speaker = 0
     for mp3 in list_of_mp3s_for_one_speaker:
         file_start_time = time.time()
-        print ("loading ", mp3)
+        print("loading ", mp3)
         audio_time_series, sampling_rate = librosa.core.load(mp3, sr=None)
-        assert sampling_rate == SAMPLE_RATE, ("frame_rate was %d" % sampling_rate)
-        assert len(audio_time_series.shape) == 1, "It wasn't mono: %s" % audio_time_series.shape
-        num_audio_samples_we_use = HALF_SECOND_OF_SAMPLES * int(audio_time_series.shape[0] / HALF_SECOND_OF_SAMPLES)
-        training_samples_from_this_file = audio_time_series[:num_audio_samples_we_use].reshape((-1, HALF_SECOND_OF_SAMPLES))
+        assert sampling_rate == SAMPLE_RATE, (
+            "frame_rate was %d" % sampling_rate)
+        assert len(
+            audio_time_series.shape) == 1, "It wasn't mono: %s" % audio_time_series.shape
+        num_audio_samples_we_use = HALF_SECOND_OF_SAMPLES * \
+            int(audio_time_series.shape[0] / HALF_SECOND_OF_SAMPLES)
+        training_samples_from_this_file = audio_time_series[:num_audio_samples_we_use].reshape(
+            (-1, HALF_SECOND_OF_SAMPLES))
         number_training_samples_we_have = training_samples_from_this_file.shape[0]
-        number_training_samples_we_need = NUM_SAMPLES_PER_SPEAKER - samples_so_far_for_this_speaker
+        number_training_samples_we_need = NUM_SAMPLES_PER_SPEAKER - \
+            samples_so_far_for_this_speaker
         if number_training_samples_we_have > number_training_samples_we_need:
-            training_samples_from_this_file = training_samples_from_this_file[:number_training_samples_we_need, :]
-        network_inputs[samples_so_far_total:samples_so_far_total+training_samples_from_this_file.shape[0], :] = training_samples_from_this_file
+            training_samples_from_this_file = training_samples_from_this_file[
+                :number_training_samples_we_need, :]
+        network_inputs[samples_so_far_total:samples_so_far_total +
+                       training_samples_from_this_file.shape[0], :] = training_samples_from_this_file
+        labels[samples_so_far_total:samples_so_far_total+training_samples_from_this_file.shape[0],
+               :] = keras.utils.to_categorical(speaker_id - 1, num_classes=NUM_SPEAKERS)
         samples_so_far_total += training_samples_from_this_file.shape[0]
         samples_so_far_for_this_speaker += training_samples_from_this_file.shape[0]
         if samples_so_far_for_this_speaker >= NUM_SAMPLES_PER_SPEAKER:
             assert samples_so_far_for_this_speaker == NUM_SAMPLES_PER_SPEAKER, samples_so_far_for_this_speaker
             break
 
-print (network_inputs.shape)
-print (network_inputs)
+print(network_inputs.shape)
+print(network_inputs)
+print(labels.shape)
+print(labels)
 
-#%%
+# Conv1D expects there to be existing channels so add another dimension to the
+# shape.
+train_dev_set = np.expand_dims(network_inputs, axis=-1)
+train_dev_labels = labels
 
-sys.exit(0)
+print("train_dev_set.shape =", train_dev_set.shape)
+
+# %%
 
 X_train, X_dev, y_train, y_dev = train_test_split(train_dev_set,
                                                   train_dev_labels,
@@ -152,6 +170,7 @@ print("%d seconds to load the data from disk" % (time.time() - start_time))
 # filter roughly corresponded to a frequency. !!
 
 """
+Pasted from the paper above:
 First, we
 take a small window of the raw waveform of length M samples,
 and convolve the raw waveform with a set of P filters. If we
@@ -175,10 +194,28 @@ with shape  (batch, features, steps).
 
 # Keras
 model = Sequential()
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
-                        activation='relu', input_dim=train_dev_set.shape[1]))
-model
-model.add(layers.Dense(100, activation='relu'))
+model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal',
+                        input_shape=(train_dev_set.shape[1], 1)))
+model.add(layers.Conv1D(filters=50, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=80, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=80, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=100, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=120, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Flatten())
 model.add(layers.Dense(NUM_SPEAKERS, activation='softmax'))
 
 adam_optimizer = keras.optimizers.Adam(lr=0.001, decay=0.0)
@@ -190,36 +227,38 @@ keras.utils.plot_model(
     model, to_file='test_keras_plot_model.png', show_shapes=True)
 # display(IPython.display.Image('test_keras_plot_model.png'))
 print(model.summary())
-# I don't know where 140240419526080 in the picture came from
 
 start_time = time.time()
 # with tf.device('/cpu:0'):
-history_object = model.fit(X_train, y_train, epochs=40, batch_size=1024,
+# The baseline model has input size 1911 so we could use batch size 1024.
+# But the CNN has input size 11025, so we have to reduce the batch_size or the
+# GPU runs out of memory.
+history_object = model.fit(X_train, y_train, epochs=80, batch_size=32,
                            verbose=2, shuffle=True, validation_data=(X_dev, y_dev))
 print("%d seconds to train the model" % (time.time() - start_time))
 
 model.save("baseline_model.h5")
 
-generate_confusion_matrix(model, test_set_inputs, test_set_labels)
+#generate_confusion_matrix(model, test_set_inputs, test_set_labels)
 
 # %%
 # Plot training & validation accuracy values
 plt.plot(history_object.history['acc'])
 plt.plot(history_object.history['val_acc'])
-plt.title('Fully Connected Model Accuracy')
+plt.title('CNN Accuracy')
 plt.ylabel('Accuracy')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig('baseline_accuracy.png', bbox_inches='tight')
+plt.savefig('cnn_accuracy.png', bbox_inches='tight')
 plt.close()
 # plt.show()
 
 # Plot training & validation loss values
 plt.plot(history_object.history['loss'])
 plt.plot(history_object.history['val_loss'])
-plt.title('Fully Connected Model Loss')
+plt.title('CNN Model Loss')
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig('baseline_loss.png', bbox_inches='tight')
+plt.savefig('cnn_loss.png', bbox_inches='tight')
 # plt.show()
