@@ -63,7 +63,7 @@ start_time = time.time()
 # These control how much data we _train_ on. We have 1047 minutes available per
 # speaker in the train/dev set on disk, so setting this number higher than that
 # is a no-op.
-MINUTES_PER_SPEAKER = 180
+MINUTES_PER_SPEAKER = 120
 # We have 20 speakers but can decrease this to train on just a subset.
 NUM_SPEAKERS = 20
 
@@ -94,7 +94,7 @@ top_20 = [
     "worldenglishbible",
 ]
 
-# Each sample is 1/2 second
+# We use half second per sample.
 NUM_SAMPLES_PER_SPEAKER = MINUTES_PER_SPEAKER * 60 * 2
 NUM_SAMPLES = NUM_SPEAKERS * NUM_SAMPLES_PER_SPEAKER
 SAMPLE_RATE = 22050
@@ -115,7 +115,6 @@ for speaker_id, file_prefix in enumerate(top_20, 1):
     speaker_start_time = time.time()
     samples_so_far_for_this_speaker = 0
     for mp3 in list_of_mp3s_for_one_speaker:
-        file_start_time = time.time()
         print("loading ", mp3)
         audio_time_series, sampling_rate = librosa.core.load(mp3, sr=None)
         assert sampling_rate == SAMPLE_RATE, (
@@ -233,7 +232,7 @@ start_time = time.time()
 # The baseline model has input size 1911 so we could use batch size 1024.
 # But the CNN has input size 11025, so we have to reduce the batch_size or the
 # GPU runs out of memory.
-history_object = model.fit(X_train, y_train, epochs=80, batch_size=32,
+history_object = model.fit(X_train, y_train, epochs=55, batch_size=32,
                            verbose=2, shuffle=True, validation_data=(X_dev, y_dev))
 print("%d seconds to train the model" % (time.time() - start_time))
 
