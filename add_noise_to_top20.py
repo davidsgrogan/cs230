@@ -11,6 +11,7 @@ import time
 import numpy as np
 import random
 import multiprocessing
+import sys
 
 from pydub import AudioSegment
 
@@ -38,14 +39,19 @@ def do_one_speaker(file_prefix):
         length_in_seconds_so_far += audio_book.duration_seconds
         print("pydub load took %d seconds" % (time.time() - file_start_time))
 
-        noise_index = random.randint(0, len(noise_segments) - 1)
-        overlaid_segment = audio_book.overlay(
-            noise_segments[noise_index], loop=True)
-        filename = "noisy_top_20/" + os.path.basename(mp3) + "_NOISE" + \
-            noise_short_names[noise_index] + ".mp3"
+        noise_start = 0
+        noise_duration_s = 20
+        overlaid_segment = audio_book
+        while noise_start < audio_book.duration_seconds - 1:
+            noise_index = random.randint(0, len(noise_segments) - 1)
+            overlaid_segment = overlaid_segment.overlay(
+                    noise_segments[noise_index], position=1000*noise_start)
+            noise_start += noise_duration_s
+        filename = "noisy_top_20/" + os.path.basename(mp3) + "_NOISE.mp3"
         assert overlaid_segment.channels == 1, overlaid_segment.channels
         assert overlaid_segment.frame_rate == 22050
         overlaid_segment.export(filename).close()
+
         print("%s took %d seconds for loading and writing" %
               (filename, time.time() - file_start_time))
     print("%s took %d seconds" % (file_prefix, time.time() - speaker_start_time))
@@ -53,11 +59,10 @@ def do_one_speaker(file_prefix):
 
 if __name__ == '__main__':
 
-    try:
-        os.makedirs("noisy_top_20")
-    except OSError as e:
-        print ("\nerror creating noisy_top_20/ does it already exist? If so you probably want to delete it\n")
-        raise e
+    def match_target_amplitude(sound):
+        change_in_dBFS = -33 - sound.dBFS
+        return sound.apply_gain(change_in_dBFS)
+
 
     speaker_id = 1
     top_20 = [
@@ -97,10 +102,23 @@ if __name__ == '__main__':
     assert noise_segments[0].duration_seconds > 0.5, "Does %s exist? It was only %s seconds long" %(noise_file_names[0], noise_segments[0].duration_seconds)
     noise_segments = [i.set_channels(1) for i in noise_segments]
     noise_segments = [i.set_frame_rate(22050) for i in noise_segments]
-    
+    noise_segments = [match_target_amplitude(i) for i in noise_segments]
+
+#    for index, segment in enumerate(noise_segments):
+#        segment.export(noise_short_names[index] + ".mp3").close()
+
     assert len(noise_file_names) == len(noise_segments)
     assert len(noise_segments) == len(noise_short_names)
-    
+
+#    do_one_speaker("nowitcanbetold")
+#    sys.exit()
+
+    try:
+        os.makedirs("noisy_top_20")
+    except OSError as e:
+        print ("\nerror creating noisy_top_20/ does it already exist? If so you probably want to delete it\n")
+        raise e
+
     print ("using %d noise segments" % len(noise_segments))
     jobs = []
     for file_prefix in top_20:
