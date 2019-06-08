@@ -29,9 +29,9 @@ os.environ["PATH"] += os.pathsep + \
 start_time = time.time()
 
 # These control how much data we use for train/dev We have 1047 minutes
-# available per speaker in the train/dev set on disk, so setting this number 
+# available per speaker in the train/dev set on disk, so setting this number
 # higher than that is a no-op.
-MINUTES_PER_SPEAKER = 20
+MINUTES_PER_SPEAKER = 120
 # We have 20 speakers but can decrease this to train on just a subset.
 NUM_SPEAKERS = 20
 
@@ -67,8 +67,8 @@ HALF_SECOND_OF_SAMPLES = int(SAMPLE_RATE / 2)
 
 # %%
 (network_inputs, labels) = generate_raw_dataset_from_mp3s_in_parallel(
-        NUM_SPEAKERS, MINUTES_PER_SPEAKER, directory="top20_mp3")
-#        NUM_SPEAKERS, MINUTES_PER_SPEAKER, directory="noisy_top_20")
+#        NUM_SPEAKERS, MINUTES_PER_SPEAKER, directory="top20_mp3")
+        NUM_SPEAKERS, MINUTES_PER_SPEAKER, directory="noisy_top_20")
 
 # Conv1D expects there to be existing channels so add another dimension to the
 # shape.
@@ -86,7 +86,8 @@ assert train_dev_labels.shape == (NUM_SAMPLES, NUM_SPEAKERS), train_dev_labels.s
 
 # TODO(dgrogan): We'll need a proper test set.
 (test_set_inputs, test_set_labels) = generate_raw_dataset_from_mp3s_in_parallel(
-        NUM_SPEAKERS, minutes_per_speaker=10, directory="top20_mp3")
+#        NUM_SPEAKERS, minutes_per_speaker=10, directory="top20_mp3")
+        NUM_SPEAKERS, minutes_per_speaker=10, directory="noisy_top_20")
 test_set_inputs = np.expand_dims(test_set_inputs, axis=-1)
 
 assert len(test_set_inputs.shape) == 3, test_set_inputs.shape
@@ -121,44 +122,30 @@ by a stabilized logarithm compression, to produce a frame-level feature vector
 at time t
 """
 
-
-"""
-data_format: A string, one of channels_last (default) or channels_first. The
-ordering of the dimensions in the inputs.  channels_last corresponds to inputs
-with shape  (batch, steps, features) while channels_first corresponds to inputs
-with shape  (batch, features, steps).
-"""
-
 # Keras
 model = Sequential()
-model.add(layers.Conv1D(filters=15, kernel_size=3, strides=2,
-                        activation=None,
+model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
+                        activation=None, use_bias=False,
                         input_shape=(X_train.shape[1], 1)))
+model.add(layers.BatchNormalization())
 model.add(layers.LeakyReLU(alpha=0.1))
-model.add(layers.Conv1D(filters=18, kernel_size=3, strides=2,
-                        activation=None, kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=50, kernel_size=3, strides=2,
+                        activation=None, use_bias=False))
+model.add(layers.BatchNormalization())
 model.add(layers.LeakyReLU(alpha=0.1))
-model.add(layers.Conv1D(filters=20, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=22, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=25, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=35, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
-                        activation=None, kernel_initializer='glorot_uniform'))
+model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2, activation='relu'))
+model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2, activation='relu'))
+model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2, activation='relu'))
+model.add(keras.layers.MaxPooling1D(pool_size=2))
+model.add(layers.Conv1D(filters=80, kernel_size=3, strides=2, activation='relu'))
+model.add(layers.Conv1D(filters=80, kernel_size=3, strides=2, activation='relu'))
+model.add(layers.Conv1D(filters=90, kernel_size=3, strides=2, activation='relu'))
+model.add(layers.Conv1D(filters=100, kernel_size=3, strides=2, activation=None))
 model.add(layers.LeakyReLU(alpha=0.01))
 model.add(layers.Flatten())
 model.add(layers.Dense(NUM_SPEAKERS, activation='softmax'))
 
-adam_optimizer = keras.optimizers.Adam(lr=0.001, decay=0.0)
+adam_optimizer = keras.optimizers.Adam(lr=0.001, decay=0.01)
 model.compile(optimizer=adam_optimizer,
               loss='categorical_crossentropy',
               metrics=['accuracy'])
@@ -175,7 +162,7 @@ start_time = time.time()
 # But the CNN has input size 11025, so we have to reduce the batch_size or the
 # GPU runs out of memory.
 tensor_board = keras.callbacks.TensorBoard(histogram_freq=1)
-history_object = model.fit(X_train, y_train, epochs=30, batch_size=128,
+history_object = model.fit(X_train, y_train, epochs=40, batch_size=64,
                            verbose=2,
                            callbacks=[tensor_board],
                            shuffle=True,
