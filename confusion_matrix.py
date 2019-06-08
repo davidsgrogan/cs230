@@ -128,10 +128,11 @@ def plot_confusion_matrix(cm,
 #%%
 def get_raw_dataset_from_mp3s_for_one_speaker(file_prefix,
                                               num_training_examples_desired,
+                                              directory,
                                               audio_samples_per_training_example=int(
                                                   22050/2),
                                               expected_sample_rate=22050):
-    this_speaker_glob = os.path.abspath('noisy_top_20/%s_*' % file_prefix)
+    this_speaker_glob = os.path.abspath(directory + os.sep + file_prefix + "_*")
     list_of_mp3s_for_one_speaker = glob.glob(this_speaker_glob)
     random.shuffle(list_of_mp3s_for_one_speaker)
     assert len(list_of_mp3s_for_one_speaker) > 0, this_speaker_glob
@@ -169,7 +170,8 @@ def get_raw_dataset_from_mp3s_for_one_speaker(file_prefix,
         this_speaker_glob, audio_samples_per_training_example, num_training_examples_desired, samples_so_far_for_this_speaker)
 
 # returns tuple of training_data and labels
-def generate_raw_dataset_from_mp3s_in_parallel(num_speakers, minutes_per_speaker):
+def generate_raw_dataset_from_mp3s_in_parallel(num_speakers, minutes_per_speaker,
+                                               directory):
     from multiprocessing import Pool
     pool = Pool()
     # Note to self: partial fills in arguments starting from the left.
@@ -178,7 +180,9 @@ def generate_raw_dataset_from_mp3s_in_parallel(num_speakers, minutes_per_speaker
     examples_per_speaker = 60*2*minutes_per_speaker
     try:
         results = pool.starmap(get_raw_dataset_from_mp3s_for_one_speaker, zip(
-            top_20[:num_speakers], num_speakers*[examples_per_speaker]))
+            top_20[:num_speakers],
+            num_speakers*[examples_per_speaker],
+            num_speakers*[directory]))
     except KeyboardInterrupt:
         pool.terminate()
         pool.join()
@@ -217,7 +221,9 @@ def generate_confusion_matrix(model, X_dev, y_dev):
 
 if __name__ == '__main__':
 
-    training_set, labels = generate_raw_dataset_from_mp3s_in_parallel(20, 180)
+    training_set, labels = generate_raw_dataset_from_mp3s_in_parallel(num_speakers=20,
+                                                                      minutes_per_speaker=60,
+                                                                      directory="noisy_top_20/")
     print(training_set.shape)
     print(training_set)
     training_set = np.expand_dims(training_set, axis=-1)
@@ -226,7 +232,7 @@ if __name__ == '__main__':
     print(labels.shape)
     print(labels)
 
-    saved_model_name = "baseline_model.h5"
+    saved_model_name = "monster_model.h5"
     print("loading model from", saved_model_name)
     model = keras.models.load_model(saved_model_name)
     # Training the model will save these files.

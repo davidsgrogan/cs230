@@ -3,23 +3,18 @@
 #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 import numpy as np
-from keras import optimizers
 from keras import layers
 from keras.models import Sequential
 import keras.utils
+import keras.optimizers
 from sklearn.model_selection import train_test_split
-from confusion_matrix import generate_confusion_matrix
+from confusion_matrix import generate_confusion_matrix, generate_raw_dataset_from_mp3s_in_parallel
 
 import matplotlib.pyplot as plt
 import IPython.display
 
-from pydub import AudioSegment
-import librosa
-
-import glob
 import time
 import random
-import math
 import os
 import sys
 
@@ -28,47 +23,17 @@ os.environ["PATH"] += os.pathsep + \
     '/Users/dgrogan/anaconda3/pkgs/graphviz-2.40.1-hefbbd9a_2/bin'
 
 
-np.random.seed(1268)
-# 85.8%, then 82% after restarting kernel, then 87% after resetting again
-random.seed(1889)
-# After setting sklearn seed, 84.7% then 85.2%, 84.8% <-- these were with batch size 128
-# Then using batch size of 256, finished in 55% of the time, but got only 84%
-# Then after changing batch size to 512, finished in 1/3 the time of 128, but only got 80%
-#  - then 84.4%, 83%
-# Then after changing batch size to 1024, only got 81% twice in a row, finished
-# in 2/3 the time of batch size of 512
-# random.seed(183) # 86.7%
-# random.seed(1832) # 85%
-# random.seed(18932) # 85%
-
-# We get a validation accuracy of 54, 55, or 56% depending on the random state
-# for 20 speakers with 60 minutes each.
-# We get a validation of 40-45% for 20 speakers with 6 minutes each including
-# both derivatives.
-# We get validation of 36-48% for 20 speakers, 6 minutes each, including only
-# the first derivative.
-
+#np.random.seed(1268)
+#random.seed(1889)
 
 start_time = time.time()
 
-# This cell reads the pre-processed audio features from disk and stuffs it into
-# an np.array for Keras.
-
-# We have
-# 20 speakers
-# 1102 files per speaker
-# 120 samples per file (1 minute of audio per file)
-# For a total 2,644,800 training examples
-
-# These control how much data we _train_ on. We have 1047 minutes available per
-# speaker in the train/dev set on disk, so setting this number higher than that
-# is a no-op.
-MINUTES_PER_SPEAKER = 120
+# These control how much data we use for train/dev We have 1047 minutes
+# available per speaker in the train/dev set on disk, so setting this number 
+# higher than that is a no-op.
+MINUTES_PER_SPEAKER = 5
 # We have 20 speakers but can decrease this to train on just a subset.
-NUM_SPEAKERS = 20
-
-# 22050 * 60 * 60 * 2 bytes = 150 MB per hour per speaker
-
+NUM_SPEAKERS = 10
 
 top_20 = [
     # This is speaker 1 and the list is always in this order.
@@ -101,57 +66,27 @@ SAMPLE_RATE = 22050
 HALF_SECOND_OF_SAMPLES = int(SAMPLE_RATE / 2)
 
 # %%
-network_inputs = np.zeros((NUM_SAMPLES, HALF_SECOND_OF_SAMPLES))
-labels = np.full((NUM_SAMPLES, NUM_SPEAKERS), -1)
-
-
-samples_so_far_total = 0
-for speaker_id, file_prefix in enumerate(top_20, 1):
-    if speaker_id > NUM_SPEAKERS:
-        break
-    this_speaker_glob = os.path.abspath('noisy_top_20/%s_*' % file_prefix)
-    list_of_mp3s_for_one_speaker = sorted(glob.glob(this_speaker_glob))
-    assert len(list_of_mp3s_for_one_speaker) > 0, this_speaker_glob
-    speaker_start_time = time.time()
-    samples_so_far_for_this_speaker = 0
-    for mp3 in list_of_mp3s_for_one_speaker:
-        print("loading ", mp3)
-        audio_time_series, sampling_rate = librosa.core.load(mp3, sr=None)
-        assert sampling_rate == SAMPLE_RATE, (
-            "frame_rate was %d" % sampling_rate)
-        assert len(
-            audio_time_series.shape) == 1, "It wasn't mono: %s" % audio_time_series.shape
-        num_audio_samples_we_use = HALF_SECOND_OF_SAMPLES * \
-            int(audio_time_series.shape[0] / HALF_SECOND_OF_SAMPLES)
-        training_samples_from_this_file = audio_time_series[:num_audio_samples_we_use].reshape(
-            (-1, HALF_SECOND_OF_SAMPLES))
-        number_training_samples_we_have = training_samples_from_this_file.shape[0]
-        number_training_samples_we_need = NUM_SAMPLES_PER_SPEAKER - \
-            samples_so_far_for_this_speaker
-        if number_training_samples_we_have > number_training_samples_we_need:
-            training_samples_from_this_file = training_samples_from_this_file[
-                :number_training_samples_we_need, :]
-        network_inputs[samples_so_far_total:samples_so_far_total +
-                       training_samples_from_this_file.shape[0], :] = training_samples_from_this_file
-        labels[samples_so_far_total:samples_so_far_total+training_samples_from_this_file.shape[0],
-               :] = keras.utils.to_categorical(speaker_id - 1, num_classes=NUM_SPEAKERS)
-        samples_so_far_total += training_samples_from_this_file.shape[0]
-        samples_so_far_for_this_speaker += training_samples_from_this_file.shape[0]
-        if samples_so_far_for_this_speaker >= NUM_SAMPLES_PER_SPEAKER:
-            assert samples_so_far_for_this_speaker == NUM_SAMPLES_PER_SPEAKER, samples_so_far_for_this_speaker
-            break
-
-print(network_inputs.shape)
-print(network_inputs)
-print(labels.shape)
-print(labels)
+(network_inputs, labels) = generate_raw_dataset_from_mp3s_in_parallel(
+        NUM_SPEAKERS, MINUTES_PER_SPEAKER, directory="noisy_top_20")
 
 # Conv1D expects there to be existing channels so add another dimension to the
 # shape.
 train_dev_set = np.expand_dims(network_inputs, axis=-1)
 train_dev_labels = labels
 
-print("train_dev_set.shape =", train_dev_set.shape)
+print (train_dev_set.shape)
+print (train_dev_set)
+
+print (train_dev_labels.shape)
+print (train_dev_labels)
+
+assert train_dev_set.shape == (NUM_SAMPLES, HALF_SECOND_OF_SAMPLES, 1), train_dev_set.shape
+assert train_dev_labels.shape == (NUM_SAMPLES, NUM_SPEAKERS), train_dev_labels.shape
+
+# TODO(dgrogan): We'll need a proper test set.
+(test_set_inputs, test_set_labels) = generate_raw_dataset_from_mp3s_in_parallel(
+        NUM_SPEAKERS, minutes_per_speaker=10, directory="noisy_top_20")
+
 
 # %%
 
@@ -193,27 +128,28 @@ with shape  (batch, features, steps).
 
 # Keras
 model = Sequential()
-model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal',
-                        input_shape=(train_dev_set.shape[1], 1)))
-model.add(layers.Conv1D(filters=50, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
+                        activation=None,
+                        input_shape=(X_train.shape[1], 1)))
+#model.add(layers.LeakyReLU(alpha=0.1))
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=60, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=80, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=80, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=100, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=120, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_uniform'))
 model.add(layers.Flatten())
 model.add(layers.Dense(NUM_SPEAKERS, activation='softmax'))
 
@@ -226,19 +162,24 @@ keras.utils.plot_model(
     model, to_file='test_keras_plot_model.png', show_shapes=True)
 # display(IPython.display.Image('test_keras_plot_model.png'))
 print(model.summary())
+print("Just printed model summary")
 
 start_time = time.time()
 # with tf.device('/cpu:0'):
 # The baseline model has input size 1911 so we could use batch size 1024.
 # But the CNN has input size 11025, so we have to reduce the batch_size or the
 # GPU runs out of memory.
-history_object = model.fit(X_train, y_train, epochs=55, batch_size=32,
-                           verbose=2, shuffle=True, validation_data=(X_dev, y_dev))
+tensor_board = keras.callbacks.TensorBoard(histogram_freq=1)
+history_object = model.fit(X_train, y_train, epochs=30, batch_size=128,
+                           verbose=2,
+                           callbacks=[tensor_board],
+                           shuffle=True,
+                           validation_data=(X_dev, y_dev))
 print("%d seconds to train the model" % (time.time() - start_time))
 
-model.save("baseline_model.h5")
+model.save("cnn_model.h5")
 
-#generate_confusion_matrix(model, test_set_inputs, test_set_labels)
+generate_confusion_matrix(model, test_set_inputs, test_set_labels)
 
 # %%
 # Plot training & validation accuracy values
