@@ -31,9 +31,9 @@ start_time = time.time()
 # These control how much data we use for train/dev We have 1047 minutes
 # available per speaker in the train/dev set on disk, so setting this number 
 # higher than that is a no-op.
-MINUTES_PER_SPEAKER = 5
+MINUTES_PER_SPEAKER = 20
 # We have 20 speakers but can decrease this to train on just a subset.
-NUM_SPEAKERS = 10
+NUM_SPEAKERS = 20
 
 top_20 = [
     # This is speaker 1 and the list is always in this order.
@@ -86,7 +86,9 @@ assert train_dev_labels.shape == (NUM_SAMPLES, NUM_SPEAKERS), train_dev_labels.s
 # TODO(dgrogan): We'll need a proper test set.
 (test_set_inputs, test_set_labels) = generate_raw_dataset_from_mp3s_in_parallel(
         NUM_SPEAKERS, minutes_per_speaker=10, directory="noisy_top_20")
+test_set_inputs = np.expand_dims(test_set_inputs, axis=-1)
 
+assert len(test_set_inputs.shape) == 3, test_set_inputs.shape
 
 # %%
 
@@ -128,28 +130,30 @@ with shape  (batch, features, steps).
 
 # Keras
 model = Sequential()
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=15, kernel_size=3, strides=2,
                         activation=None,
                         input_shape=(X_train.shape[1], 1)))
-#model.add(layers.LeakyReLU(alpha=0.1))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
+model.add(layers.LeakyReLU(alpha=0.1))
+model.add(layers.Conv1D(filters=18, kernel_size=3, strides=2,
+                        activation=None, kernel_initializer='glorot_normal'))
+model.add(layers.LeakyReLU(alpha=0.1))
+model.add(layers.Conv1D(filters=20, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=22, kernel_size=3, strides=2,
+                        activation='relu', kernel_initializer='glorot_normal'))
+model.add(layers.Conv1D(filters=25, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
 model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=35, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
+model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
                         activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_normal'))
-model.add(layers.Conv1D(filters=30, kernel_size=3, strides=2,
-                        activation='relu', kernel_initializer='glorot_uniform'))
+model.add(layers.Conv1D(filters=40, kernel_size=3, strides=2,
+                        activation=None, kernel_initializer='glorot_uniform'))
+model.add(layers.LeakyReLU(alpha=0.01))
 model.add(layers.Flatten())
 model.add(layers.Dense(NUM_SPEAKERS, activation='softmax'))
 
