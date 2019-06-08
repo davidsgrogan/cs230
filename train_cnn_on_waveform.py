@@ -67,7 +67,8 @@ HALF_SECOND_OF_SAMPLES = int(SAMPLE_RATE / 2)
 
 # %%
 (network_inputs, labels) = generate_raw_dataset_from_mp3s_in_parallel(
-        NUM_SPEAKERS, MINUTES_PER_SPEAKER, directory="noisy_top_20")
+        NUM_SPEAKERS, MINUTES_PER_SPEAKER, directory="top20_mp3")
+#        NUM_SPEAKERS, MINUTES_PER_SPEAKER, directory="noisy_top_20")
 
 # Conv1D expects there to be existing channels so add another dimension to the
 # shape.
@@ -85,7 +86,7 @@ assert train_dev_labels.shape == (NUM_SAMPLES, NUM_SPEAKERS), train_dev_labels.s
 
 # TODO(dgrogan): We'll need a proper test set.
 (test_set_inputs, test_set_labels) = generate_raw_dataset_from_mp3s_in_parallel(
-        NUM_SPEAKERS, minutes_per_speaker=10, directory="noisy_top_20")
+        NUM_SPEAKERS, minutes_per_speaker=10, directory="top20_mp3")
 test_set_inputs = np.expand_dims(test_set_inputs, axis=-1)
 
 assert len(test_set_inputs.shape) == 3, test_set_inputs.shape
